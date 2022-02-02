@@ -1,4 +1,5 @@
 from curses.ascii import HT
+from multiprocessing import context
 from urllib import response
 from django.shortcuts import render, HttpResponse, redirect
 import random
@@ -12,8 +13,21 @@ topics = [
 
 nextId = 4
 
-def HTMLTemplate(articleTag):
+def HTMLTemplate(articleTag, id=None):  # id 값의 기본 값을 None으로 선언. 따로 값을 받지 않는 경우에 자동적으로 None이 됨.
     global topics   # topics를 전역변수로 선언
+    contextUI = ''
+    if id!=None:
+        contextUI = f'''
+        <li>
+            <form action="/delete/" method="post">
+                <input type="hidden" name="id" value={id}>
+                <input type="submit" value="delete">
+            </form>
+        </li>
+        <li>
+            <a href="/update/"{id}"><update></a>
+        </li>
+        '''
     ol = ''
     # 상세보기 화면에 나올 메시지를 ol에 담아 출력
     # a href: 눌렀을 때 다음 화면으로 넘어가도록 함, get 방식으로 서버에 접속함 (get: 데이터를 가져옴)
@@ -32,9 +46,7 @@ def HTMLTemplate(articleTag):
             {articleTag}
             <ul>
                 <li><a href="/create/">create</a></li>
-                <li>
-                    <form>
-                </li>
+            {contextUI}
             </ul>  
         </body>
     </html>
@@ -56,7 +68,7 @@ def read(request, id):
     for topic in topics:
         if topic['id'] == int(id):  # read(request, id)로 들어온 id 파라미터는 문자형이므로, int형으로 바꿔줘야 함
             article = f'<h2>{topic["title"]}<h2><body>{topic["body"]}'
-    return HttpResponse(HTMLTemplate(article))
+    return HttpResponse(HTMLTemplate(article, id))
 
 @csrf_exempt
 def create(request):
@@ -94,3 +106,49 @@ def create(request):
         nextId += 1
         return redirect(url)    # 게시글 상세보기 페이지를 return
 
+@csrf_exempt
+def delete(request):
+    global topics
+    if request.method == 'POST':    # POST 방식일 때, delete
+        id = request.POST['id']
+        newTopics = []
+        # 삭제할 항목을 제외한 나머지 항목들을 newTopics라는 새로운 list에 append
+        for topic in topics:
+            if topic['id']!=int(id):
+                newTopics.append(topic)
+        topics = newTopics
+        print('id: ', id)
+    return redirect('/')
+
+@csrf_exempt
+def update(request, id):
+    global topics
+    if request.method == 'GET':
+        for topic in topics:
+            if topic['id']==int(id):
+                selectedTopic = {
+                    "title": topic['title'],
+                    "body": topic['body']
+                }
+        # 수정할 글(기존에 작성해놓은 글)을 띄움.
+        article = f'''
+            <form action="/update/{id}/" method="post">
+                <p><input type="text" name="title" placeholder="title" value={selectedTopic["title"]}></p>
+                <p><textarea name="body" placeholder="body">{selectedTopic["body"]}</textarea></p>
+                <p><input type="submit"></p>
+            </form>
+        '''
+        return HttpResponse(HTMLTemplate(article, id))
+    elif request.method == 'POST':
+        title=request.POST['title']
+        body=request.POST['body']
+        for topic in topics:
+            if topic['id']==int(id):
+                topic['title']=title
+                topic['body']=body
+        return redirect(f'/read/{id}')
+
+    # GET: update text 출력 (상세보기 페이지로 이동 시, update text 출력)
+    # POST: 데이터 수정
+    
+    
